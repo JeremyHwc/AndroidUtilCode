@@ -1,4 +1,4 @@
-package com.blankj.androidutilcode.feature.sub.meta_data;
+package com.blankj.androidutilcode.feature.core.meta_data;
 
 import android.content.Context;
 import android.content.Intent;
@@ -9,7 +9,7 @@ import android.widget.TextView;
 
 import com.blankj.androidutilcode.R;
 import com.blankj.androidutilcode.base.BaseBackActivity;
-import com.blankj.subutil.util.MetaDataUtils;
+import com.blankj.utilcode.util.MetaDataUtils;
 import com.blankj.utilcode.util.SpanUtils;
 
 /**
@@ -17,7 +17,7 @@ import com.blankj.utilcode.util.SpanUtils;
  *     author: Blankj
  *     blog  : http://blankj.com
  *     time  : 2018/05/15
- *     desc  :
+ *     desc  : demo about MetaDataUtils
  * </pre>
  */
 public class MetaDataActivity extends BaseBackActivity {

@@ -6,22 +6,24 @@ ext {
             compileSdkVersion: 27,
             minSdkVersion    : 14,
             targetSdkVersion : 27,
-            versionCode      : 1_019_000,
-            versionName      : '1.19.0'// E.g 1.9.72 => 1,009,072
+            versionCode      : 1_020_003,
+            versionName      : '1.20.3'// E.g. 1.9.72 => 1,009,072
     ]
 
     versionConfig = [
             // plugin
-            gradle     : '3.1.3',
-            kotlin     : '1.2.30',
+            gradle       : '3.1.3',
+            kotlin       : '1.2.30',
             // lib
-            support    : '27.1.0',
-            gson       : '2.8.2',
-            glide      : '4.7.1',
-            leakcanary : '1.5.4',
+            support      : '27.1.0',
+            gson         : '2.8.2',
+            glide        : '4.7.1',
+            leakcanary   : '1.5.4',
+            retrofit     : '2.4.0',
+            free_proguard: '0.0.7',
             // test
-            junit      : '4.12',
-            robolectric: '3.1.2'
+            junit        : '4.12',
+            robolectric  : '3.1.2'
     ]
 
     depConfig = [
@@ -39,6 +41,8 @@ ext {
             ],
             gson                : "com.google.code.gson:gson:$versionConfig.gson",
             glide               : "com.github.bumptech.glide:glide:$versionConfig.glide",
+            retrofit            : "com.squareup.retrofit2:retrofit:$versionConfig.retrofit",
+            free_proguard       : "com.blankj:free-proguard:$versionConfig.free_proguard",
 
             junit               : "junit:junit:$versionConfig.junit",
             robolectric         : "org.robolectric:robolectric:$versionConfig.robolectric",
@@ -137,7 +141,7 @@ def configLibAndroidDomain(Project pro) {
         buildTypes {
             release {
                 minifyEnabled false
-//            consumerProguardFiles 'proguard-rules.pro'
+                consumerProguardFiles 'proguard-rules.pro'
                 proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
             }
         }
@@ -157,17 +161,18 @@ def configLibAndroidDomain(Project pro) {
 
 def configAppDependencies(Project pro) {
     pro.dependencies {
-        implementation fileTree(include: ['*.jar'], dir: 'libs')
+        implementation fileTree(include: ['*.jar'], dir: 'app/libs')
         implementation project(':utilcode')
         implementation project(':subutil')
 
         implementation depConfig.support.appcompat_v7
         implementation depConfig.support.design
+        implementation depConfig.free_proguard
         implementation 'com.r0adkll:slidableactivity:2.0.5'
         // LeakCanary
         debugImplementation depConfig.leakcanary.android
         releaseImplementation depConfig.leakcanary.android_no_op
-//        implementation 'com.blankj:utilcode:1.18.7'
+//        implementation 'com.blankj:utilcode:1.20.3'
     }
 }
 
@@ -191,8 +196,10 @@ def configSubUtilDependencies(Project pro) {
         api(depConfig.glide) {
             exclude group: "com.android.support"
         }
+        api depConfig.retrofit
 
         testImplementation depConfig.junit
         testImplementation depConfig.robolectric
     }
 }
+//./gradlew bintrayUpload

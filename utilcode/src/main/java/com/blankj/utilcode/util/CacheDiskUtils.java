@@ -129,15 +129,23 @@ public final class CacheDiskUtils implements CacheConstants {
                                              final long maxSize,
                                              final int maxCount) {
         final String cacheKey = cacheDir.getAbsoluteFile() + "_" + maxSize + "_" + maxCount;
-        CacheDiskUtils cache = CACHE_MAP.get(cacheKey);
-        if (cache == null) {
-            if (!cacheDir.exists() && !cacheDir.mkdirs()) {
-                throw new RuntimeException("can't make dirs in " + cacheDir.getAbsolutePath());
+        if (cacheDir.exists()) {
+            CacheDiskUtils cache = CACHE_MAP.get(cacheKey);
+            if (cache == null) {
+                DiskCacheManager cacheManager = new DiskCacheManager(cacheDir, maxSize, maxCount);
+                cache = new CacheDiskUtils(cacheKey, cacheManager);
+                CACHE_MAP.put(cacheKey, cache);
             }
-            cache = new CacheDiskUtils(cacheKey, new DiskCacheManager(cacheDir, maxSize, maxCount));
-            CACHE_MAP.put(cacheKey, cache);
+            return cache;
         }
-        return cache;
+        if (cacheDir.mkdirs()) {
+            DiskCacheManager cacheManager = new DiskCacheManager(cacheDir, maxSize, maxCount);
+            CacheDiskUtils cacheDiskUtils = new CacheDiskUtils(cacheKey, cacheManager);
+            CACHE_MAP.put(cacheKey, cacheDiskUtils);
+            return cacheDiskUtils;
+        } else {
+            throw new RuntimeException("can't make dirs in " + cacheDir.getAbsolutePath());
+        }
     }
 
     private CacheDiskUtils(final String cacheKey, final DiskCacheManager cacheManager) {

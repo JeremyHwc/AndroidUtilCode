@@ -6,8 +6,12 @@ import android.app.ActivityManager;
 import android.app.Application;
 import android.app.Application.ActivityLifecycleCallbacks;
 import android.content.Context;
+import android.content.res.Resources;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
+import android.support.v4.content.FileProvider;
+import android.util.DisplayMetrics;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -40,7 +44,7 @@ public final class Utils {
     @SuppressLint("StaticFieldLeak")
     private static Application sApplication;
 
-    static final ActivityLifecycleImpl ACTIVITY_LIFECYCLE = new ActivityLifecycleImpl();
+    private static final ActivityLifecycleImpl ACTIVITY_LIFECYCLE = new ActivityLifecycleImpl();
 
     private Utils() {
         throw new UnsupportedOperationException("u can't instantiate me...");
@@ -52,7 +56,11 @@ public final class Utils {
      *
      * @param context context
      */
-    public static void init(@NonNull final Context context) {
+    public static void init(final Context context) {
+        if (context == null) {
+            init(getApplicationByReflect());
+            return;
+        }
         init((Application) context.getApplicationContext());
     }
 
@@ -62,9 +70,13 @@ public final class Utils {
      *
      * @param app application
      */
-    public static void init(@NonNull final Application app) {
+    public static void init(final Application app) {
         if (sApplication == null) {
-            Utils.sApplication = app;
+            if (app == null) {
+                Utils.sApplication = getApplicationByReflect();
+            } else {
+                Utils.sApplication = app;
+            }
             Utils.sApplication.registerActivityLifecycleCallbacks(ACTIVITY_LIFECYCLE);
         }
     }
@@ -76,16 +88,21 @@ public final class Utils {
      */
     public static Application getApp() {
         if (sApplication != null) return sApplication;
+        Application app = getApplicationByReflect();
+        init(app);
+        return app;
+    }
+
+    private static Application getApplicationByReflect() {
         try {
             @SuppressLint("PrivateApi")
             Class<?> activityThread = Class.forName("android.app.ActivityThread");
-            Object at = activityThread.getMethod("currentActivityThread").invoke(null);
-            Object app = activityThread.getMethod("getApplication").invoke(at);
+            Object thread = activityThread.getMethod("currentActivityThread").invoke(null);
+            Object app = activityThread.getMethod("getApplication").invoke(thread);
             if (app == null) {
                 throw new NullPointerException("u should init first");
             }
-            init((Application) app);
-            return sApplication;
+            return (Application) app;
         } catch (NoSuchMethodException e) {
             e.printStackTrace();
         } catch (IllegalAccessException e) {
@@ -118,7 +135,7 @@ public final class Utils {
     static boolean isAppForeground() {
         ActivityManager am =
                 (ActivityManager) Utils.getApp().getSystemService(Context.ACTIVITY_SERVICE);
-        if (am == null) return false;
+        //noinspection ConstantConditions
         List<ActivityManager.RunningAppProcessInfo> info = am.getRunningAppProcesses();
         if (info == null || info.size() == 0) return false;
         for (ActivityManager.RunningAppProcessInfo aInfo : info) {
@@ -127,6 +144,62 @@ public final class Utils {
             }
         }
         return false;
+    }
+
+    static final AdaptScreenArgs ADAPT_SCREEN_ARGS = new AdaptScreenArgs();
+
+    static void restoreAdaptScreen() {
+        final DisplayMetrics systemDm = Resources.getSystem().getDisplayMetrics();
+        final DisplayMetrics appDm = Utils.getApp().getResources().getDisplayMetrics();
+        final Activity activity = ACTIVITY_LIFECYCLE.getTopActivity();
+        if (activity != null) {
+            final DisplayMetrics activityDm = activity.getResources().getDisplayMetrics();
+            if (ADAPT_SCREEN_ARGS.isVerticalSlide) {
+                activityDm.density = activityDm.widthPixels / (float) ADAPT_SCREEN_ARGS.sizeInPx;
+            } else {
+                activityDm.density = activityDm.heightPixels / (float) ADAPT_SCREEN_ARGS.sizeInPx;
+            }
+            activityDm.scaledDensity = activityDm.density * (systemDm.scaledDensity / systemDm.density);
+            activityDm.densityDpi = (int) (160 * activityDm.density);
+
+            appDm.density = activityDm.density;
+            appDm.scaledDensity = activityDm.scaledDensity;
+            appDm.densityDpi = activityDm.densityDpi;
+        } else {
+            if (ADAPT_SCREEN_ARGS.isVerticalSlide) {
+                appDm.density = appDm.widthPixels / (float) ADAPT_SCREEN_ARGS.sizeInPx;
+            } else {
+                appDm.density = appDm.heightPixels / (float) ADAPT_SCREEN_ARGS.sizeInPx;
+            }
+            appDm.scaledDensity = appDm.density * (systemDm.scaledDensity / systemDm.density);
+            appDm.densityDpi = (int) (160 * appDm.density);
+        }
+    }
+
+    static void cancelAdaptScreen() {
+        final DisplayMetrics systemDm = Resources.getSystem().getDisplayMetrics();
+        final DisplayMetrics appDm = Utils.getApp().getResources().getDisplayMetrics();
+        final Activity activity = ACTIVITY_LIFECYCLE.getTopActivity();
+        if (activity != null) {
+            final DisplayMetrics activityDm = activity.getResources().getDisplayMetrics();
+            activityDm.density = systemDm.density;
+            activityDm.scaledDensity = systemDm.scaledDensity;
+            activityDm.densityDpi = systemDm.densityDpi;
+        }
+        appDm.density = systemDm.density;
+        appDm.scaledDensity = systemDm.scaledDensity;
+        appDm.densityDpi = systemDm.densityDpi;
+    }
+
+    static boolean isAdaptScreen() {
+        final DisplayMetrics systemDm = Resources.getSystem().getDisplayMetrics();
+        final DisplayMetrics appDm = Utils.getApp().getResources().getDisplayMetrics();
+        return systemDm.density != appDm.density;
+    }
+
+    static class AdaptScreenArgs {
+        int     sizeInPx;
+        boolean isVerticalSlide;
     }
 
     static class ActivityLifecycleImpl implements ActivityLifecycleCallbacks {
@@ -222,7 +295,14 @@ public final class Utils {
                     return topActivity;
                 }
             }
-            // using reflect to get top activity
+            Activity topActivityByReflect = getTopActivityByReflect();
+            if (topActivityByReflect != null) {
+                setTopActivity(topActivityByReflect);
+            }
+            return topActivityByReflect;
+        }
+
+        private Activity getTopActivityByReflect() {
             try {
                 @SuppressLint("PrivateApi")
                 Class<?> activityThreadClass = Class.forName("android.app.ActivityThread");
@@ -238,9 +318,7 @@ public final class Utils {
                     if (!pausedField.getBoolean(activityRecord)) {
                         Field activityField = activityRecordClass.getDeclaredField("activity");
                         activityField.setAccessible(true);
-                        Activity activity = (Activity) activityField.get(activityRecord);
-                        setTopActivity(activity);
-                        return activity;
+                        return (Activity) activityField.get(activityRecord);
                     }
                 }
             } catch (ClassNotFoundException e) {
@@ -255,6 +333,16 @@ public final class Utils {
                 e.printStackTrace();
             }
             return null;
+        }
+    }
+
+
+    public static final class FileProvider4UtilCode extends FileProvider {
+
+        @Override
+        public boolean onCreate() {
+            Utils.init(getContext());
+            return true;
         }
     }
 
